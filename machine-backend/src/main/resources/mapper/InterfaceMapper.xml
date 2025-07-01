@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.machinebackend.mapper.InterfaceMapper">
+
+    <!-- ResultMap for mapping complex JOIN results to the DTO -->
+    <resultMap id="InterfaceWithFullPathMap" type="com.example.machinebackend.dto.InterfaceWithFullPathDTO">
+        <id property="id" column="interface_id"/>
+        <result property="deviceId" column="interface_device_id"/>
+        <result property="name" column="interface_name"/>
+        <result property="number" column="interface_number"/>
+        <result property="description" column="interface_description"/>
+        <result property="targetId" column="interface_target_id"/>
+        <result property="status" column="interface_status"/>
+        <association property="fullPath" javaType="com.example.machinebackend.dto.InterfaceWithFullPathDTO$FullPathInfoDTO">
+            <result property="deviceId" column="device_id"/>
+            <result property="deviceName" column="device_name"/>
+            <result property="cabinetId" column="cabinet_id"/>
+            <result property="cabinetName" column="cabinet_name"/>
+            <result property="rowId" column="row_id"/>
+            <result property="rowName" column="row_name"/>
+            <result property="roomId" column="room_id"/>
+            <result property="roomName" column="room_name"/>
+        </association>
+    </resultMap>
+
+    <!-- New method for fetching interface with its full path -->
+    <select id="selectWithFullPathById" resultMap="InterfaceWithFullPathMap">
+        SELECT
+            i.id AS interface_id,
+            i.device_id AS interface_device_id,
+            i.name AS interface_name,
+            i.number AS interface_number,
+            i.description AS interface_description,
+            i.target_id AS interface_target_id,
+            i.status AS interface_status,
+            d.id AS device_id,
+            d.name AS device_name,
+            c.id AS cabinet_id,
+            c.name AS cabinet_name,
+            cr.id AS row_id,
+            cr.name AS row_name,
+            r.id AS room_id,
+            r.name AS room_name
+        FROM interface i
+        LEFT JOIN device d ON i.device_id = d.id
+        LEFT JOIN cabinet c ON d.cabinet_id = c.id
+        LEFT JOIN cabinet_row cr ON c.row_id = cr.id
+        LEFT JOIN room r ON cr.room_id = r.id
+        WHERE i.id = #{id}
+    </select>
+
+    <!-- Re-implementation of existing methods -->
+    <select id="selectByDeviceId" resultType="com.example.machinebackend.entity.Interface">
+        SELECT id, device_id as deviceId, name, number, description, target_id as targetId, status FROM interface WHERE device_id = #{deviceId}
+    </select>
+
+    <select id="selectById" resultType="com.example.machinebackend.entity.Interface">
+        SELECT id, device_id as deviceId, name, number, description, target_id as targetId, status FROM interface WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO interface(device_id, name, number, description, target_id, status)
+        VALUES(#{deviceId}, #{name}, #{number}, #{description}, #{targetId}, #{status})
+    </insert>
+
+    <update id="update">
+        UPDATE interface
+        SET device_id=#{deviceId}, name=#{name}, number=#{number}, description=#{description}, target_id=#{targetId}, status=#{status}
+        WHERE id=#{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE interface SET status = #{status} WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM interface WHERE id=#{id}
+    </delete>
+
+</mapper> 
