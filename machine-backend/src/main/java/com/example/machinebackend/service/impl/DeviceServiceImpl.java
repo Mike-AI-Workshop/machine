@@ -5,6 +5,7 @@ import com.example.machinebackend.mapper.DeviceMapper;
 import com.example.machinebackend.service.DeviceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.example.machinebackend.dto.DeviceWithFullPathDTO;
 
 import java.util.List;
 
@@ -28,7 +29,27 @@ public class DeviceServiceImpl implements DeviceService {
      */
     @Override
     public List<Device> getDevicesByCabinetId(Integer cabinetId) {
-        return deviceMapper.selectByCabinetId(cabinetId);
+        return deviceMapper.findByCabinetId(cabinetId);
+    }
+
+    /**
+     * 实现接口方法，调用mapper层获取带有完整路径的设备列表
+     * @param cabinetId 机柜ID
+     * @return 包含完整路径的设备DTO列表
+     */
+    @Override
+    public List<DeviceWithFullPathDTO> getDevicesWithFullPathByCabinetId(Integer cabinetId) {
+        return deviceMapper.selectDevicesWithFullPathByCabinetId(cabinetId);
+    }
+
+    /**
+     * 实现接口方法，调用mapper层获取带有完整路径的单个设备
+     * @param id 设备ID
+     * @return 包含完整路径的设备DTO
+     */
+    @Override
+    public DeviceWithFullPathDTO getDeviceWithFullPathById(Integer id) {
+        return deviceMapper.selectDeviceWithFullPathById(id);
     }
 
     /**
@@ -38,7 +59,7 @@ public class DeviceServiceImpl implements DeviceService {
      */
     @Override
     public Device getDeviceById(Integer id) {
-        return deviceMapper.selectById(id);
+        return deviceMapper.findById(id);
     }
 
     /**

@@ -309,10 +309,11 @@ function goBack() {
 <style scoped>
 .room-list-container {
   padding: 24px;
-  height: 100%;
+  height: 100%; /* 恢复height: 100% */
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  /* flex-grow: 1; */ /* 移除 flex-grow */
 }
 
 .action-bar {
@@ -379,7 +380,7 @@ function goBack() {
 
 .card-body {
   padding: 16px;
-  flex-grow: 1;
+  /* flex-grow: 1; */ /* 移除此行，避免在空间不足时挤占footer的空间 */
 }
 
 .room-name {

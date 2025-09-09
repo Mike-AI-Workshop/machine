@@ -37,7 +37,7 @@
         <el-button :icon="ArrowLeft" circle @click="goBack" />
         <div class="page-title-with-context">
           <h2 class="page-title">接口管理</h2>
-          <span v-if="deviceName" class="context-name">/ {{ deviceName }}</span>
+          <span v-if="deviceName" class="context-name">/ {{ fullPathName }}</span>
         </div>
       </div>
     </div>
@@ -60,15 +60,16 @@
               <p class="interface-description">{{ iface.description || '暂无描述' }}</p>
             </div>
             <div class="card-extra-info">
-              <div class="target-info">
-                <el-icon><Connection /></el-icon>
+              <div class="target-info" :class="{ 'is-connected': iface.targetInfo }">
+                <el-icon v-if="iface.targetInfo"><Switch /></el-icon>
+                <el-icon v-else><Connection /></el-icon>
                 <span>{{ iface.targetInfoText }}</span>
               </div>
               <div class="status-info">
-                <el-switch :model-value="iface.status" @change="toggleStatus(iface)" />
+                <el-switch :model-value="iface.status" :disabled="!authStore.isAdmin" @change="toggleStatus(iface)" />
                 <span class="status-text">{{ iface.status ? '开启' : '关闭' }}</span>
+              </div>
             </div>
-          </div>
             <div class="interface-card-actions">
               <el-button v-if="authStore.isAdmin" size="small" @click="openEditDialog(iface)">编辑</el-button>
               <el-button v-if="authStore.isAdmin" size="small" type="danger" @click="deleteInterface(iface.id)">删除</el-button>
@@ -85,8 +86,11 @@
       <el-card class="visual-preview-panel" shadow="never">
         <template #header>
           <div class="panel-header">
-            <span>设备可视化预览</span>
-            <el-button v-if="authStore.isAdmin" type="primary" :icon="Edit" text @click="imageEditVisible = true">编辑布局</el-button>
+            <span>{{ fullPathName }}</span>
+            <div>
+              <el-button :icon="ViewIcon" text @click="handlePreviewImage" :disabled="!currentImageUrl">全屏预览</el-button>
+              <el-button v-if="authStore.isAdmin" type="primary" :icon="Edit" text @click="imageEditVisible = true">编辑布局</el-button>
+            </div>
           </div>
         </template>
         <div class="preview-controls">
@@ -96,10 +100,10 @@
           </el-radio-group>
         </div>
         <div class="image-preview-container">
-          <img :src="currentImageUrl" class="preview-image" v-if="currentImageUrl" />
+          <img :src="currentImageUrl" class="preview-image" v-if="currentImageUrl" ref="previewImageRef" />
           <el-empty description="暂无图片" v-else />
           <!-- 渲染Marker -->
-          <div v-for="marker in markersToShow" :key="marker.id" class="preview-marker" :style="{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }">
+          <div v-for="marker in markersToShow" :key="marker.id" class="preview-marker" :style="previewMarkerStyle(marker)">
             <el-popover placement="right" trigger="click" width="250">
               <template #reference>
                 <el-button size="small" :type="(marker.ref_id || marker.refId) ? 'primary' : 'warning'" plain>
@@ -129,6 +133,12 @@
     </div>
 
     <!-- 3. 弹窗 -->
+    <!-- el-image-viewer for fullscreen preview -->
+    <el-image-viewer
+      v-if="showImageViewer"
+      :url-list="[currentImageUrl]"
+      @close="showImageViewer = false"
+    />
     <!-- 新增/编辑接口弹窗 -->
     <el-dialog v-model="editDialogVisible" :title="editMode === 'add' ? '新增接口' : '编辑接口'" width="500px" @close="resetForm">
       <el-form :model="editForm" label-width="80px" ref="editFormRef">
@@ -236,8 +246,8 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router';
 import axios from 'axios';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { ArrowLeft, Plus, Edit, ZoomIn, ZoomOut, Connection, Loading } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox, ElImageViewer } from 'element-plus';
+import { ArrowLeft, Plus, Edit, ZoomIn, ZoomOut, Connection, Loading, View as ViewIcon, Switch } from '@element-plus/icons-vue';
 import { useAuthStore } from '../../store/auth';
 
 const authStore = useAuthStore();
@@ -248,6 +258,7 @@ const deviceId = ref(Number(route.query.deviceId));
 // --- 核心数据 ---
 const device = ref({});
 const deviceName = ref('');
+const fullPathName = ref('加载中...'); // 新增状态，用于显示完整路径
 const interfaces = ref([]); // 原始接口列表
 const frontImageUrl = ref('');
 const backImageUrl = ref('');
@@ -262,6 +273,7 @@ const showFront = ref(true);
 const editDialogVisible = ref(false);
 const imageEditVisible = ref(false);
 const addMarkerDialogVisible = ref(false);
+const showImageViewer = ref(false); // For el-image-viewer
 
 // --- 表单与临时状态 ---
 const editMode = ref('add');
@@ -289,6 +301,8 @@ const dragOffset = ref({ x: 0, y: 0 });
 const imageAreaRef = ref(null);
 const transformWrapperRef = ref(null);
 const draggingMarker = ref(null);
+const previewImageRef = ref(null); // Ref for preview image
+const imageRenderScale = ref(1); // Scale of the rendered image in preview
 
 // --- 计算属性 ---
 const currentImageUrl = computed(() => (showFront.value ? frontImageUrl.value : backImageUrl.value));
@@ -324,14 +338,22 @@ const formattedInterfaces = computed(() => {
       const path = formatFullPath(iface.targetInfo.fullPath);
       const name = iface.targetInfo.name || '[未知接口]';
       const number = iface.targetInfo.number || '无编号';
-      text = `-> ${path} / ${name} (${number})`;
+      text = `<-> ${path} / ${name} (${number})`;
     } else if (iface.targetInfo) {
       const name = iface.targetInfo.name || '[未知接口]';
       const number = iface.targetInfo.number || '无编号';
-      text = `-> ${name} (${number})`;
+      text = `<-> ${name} (${number})`;
     }
     return { ...iface, targetInfoText: text };
   });
+});
+
+const previewMarkerStyle = (marker) => ({
+  position: 'absolute',
+  left: `${marker.x * 100}%`,
+  top: `${marker.y * 100}%`,
+  transform: `translate(-50%, -50%) scale(${imageRenderScale.value})`,
+  transformOrigin: 'center center'
 });
 
 const transformWrapperStyle = computed(() => ({
@@ -358,6 +380,7 @@ async function fetchAllData() {
   frontImageUrl.value = '';
   backImageUrl.value = '';
   deviceName.value = '';
+  fullPathName.value = '加载中...';
 
   try {
     // 使用 Promise.all 并行加载，提高速度
@@ -376,14 +399,26 @@ async function fetchAllData() {
 
 async function fetchDeviceDetails() {
   try {
-    const res = await axios.get(`/api/devices/${deviceId.value}`);
+    const res = await axios.get(`/api/devices/${deviceId.value}/with-full-path`);
     if (res.data.code === 0) {
-      device.value = res.data.data;
-      deviceName.value = device.value.name;
+      const deviceData = res.data.data;
+      device.value = deviceData;
+      deviceName.value = deviceData.name;
+
+      // 新增：拼接完整路径
+      if (deviceData.roomName) {
+        fullPathName.value = `${deviceData.roomName} / ${deviceData.rowName} / ${deviceData.cabinetName} / ${deviceData.name}`;
+      } else {
+        fullPathName.value = deviceData.name; // 降级处理
+      }
+
       if (device.value.imageFront) frontImageUrl.value = (await axios.get(`/api/images/${device.value.imageFront}`)).data.data.url;
       if (device.value.imageBack) backImageUrl.value = (await axios.get(`/api/images/${device.value.imageBack}`)).data.data.url;
     }
-  } catch { console.error("Failed to fetch device details."); }
+  } catch {
+      console.error("Failed to fetch device details.");
+      fullPathName.value = '加载设备信息失败';
+  }
 }
 
 async function fetchInterfaces() {
@@ -714,6 +749,38 @@ async function handleMarkerJump(marker) {
   }
 }
 
+// --- 图片/Marker 缩放、跳转和路由更新等逻辑 ---
+function handlePreviewImage() {
+  if (currentImageUrl.value) {
+    showImageViewer.value = true;
+  }
+}
+
+function updateImageRenderScale() {
+  if (!previewImageRef.value || !previewImageRef.value.complete) return;
+  const { offsetWidth, naturalWidth } = previewImageRef.value;
+  if (naturalWidth > 0) {
+    imageRenderScale.value = offsetWidth / naturalWidth;
+  }
+}
+
+let resizeObserver = null;
+watch(previewImageRef, (newEl) => {
+  if (newEl) {
+    newEl.onload = () => {
+      updateImageRenderScale();
+      if (resizeObserver) resizeObserver.disconnect();
+      const parentContainer = newEl.parentElement;
+      if (parentContainer) {
+        resizeObserver = new ResizeObserver(updateImageRenderScale);
+        resizeObserver.observe(parentContainer);
+      }
+    };
+  } else {
+    if (resizeObserver) resizeObserver.disconnect();
+  }
+});
+
 onMounted(fetchAllData);
 
 // 关键修复：使用 onBeforeRouteUpdate 导航守卫处理组件内跳转
@@ -733,7 +800,6 @@ onBeforeRouteUpdate((to, from) => {
   padding: 24px;
   display: flex;
   flex-direction: column;
-  height: 100%;
   box-sizing: border-box;
   position: relative; /* 为加载遮罩层提供定位上下文 */
 }
@@ -768,8 +834,16 @@ onBeforeRouteUpdate((to, from) => {
 .visual-preview-panel { width: 60%; }
 .panel-header { display: flex; justify-content: space-between; align-items: center; }
 
-/* Interface List Panel */
-.interface-list-panel .el-card__body { padding: 0; flex-grow: 1; display: flex; flex-direction: column; }
+/* Interface List Panel & Visual Preview Panel Body */
+.interface-list-panel .el-card__body,
+.visual-preview-panel .el-card__body {
+  padding: 0;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .interface-list-scroll-container { flex-grow: 1; overflow-y: auto; padding: 20px; }
 .interface-card {
   position: relative;
@@ -787,14 +861,30 @@ onBeforeRouteUpdate((to, from) => {
 .interface-description { font-size: 14px; color: #606266; margin: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; text-overflow: ellipsis; min-height: 40px; }
 .card-extra-info { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f2f2f2; padding-top: 12px; }
 .target-info, .status-info { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #606266; }
+.target-info.is-connected {
+  color: #409eff;
+  font-weight: 500;
+}
+.target-info.is-connected .el-icon {
+  color: #409eff;
+}
 .status-info .el-switch { height: auto; }
 .interface-card-actions { position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; opacity: 0; transition: opacity 0.3s; background: #fff; padding: 4px; border-radius: 6px; }
 .interface-card-actions .el-button + .el-button { margin-left: 0; }
 .jump-button { margin-left: 8px; }
 
 /* Visual Preview Panel */
-.preview-controls { margin-bottom: 16px; }
-.image-preview-container { position: relative; width: 100%; height: calc(100% - 48px); background: #f5f7fa; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.preview-controls { margin-bottom: 16px; flex-shrink: 0; }
+.image-preview-container {
+  position: relative;
+  background: #f5f7fa;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-grow: 1;
+  min-height: 0; /* Flexbox hack for overflow */
+}
 .preview-image { max-width: 100%; max-height: 100%; object-fit: contain; }
 .preview-marker { position: absolute; transform: translate(-50%, -50%); }
 .marker-popover-content h4 { margin: 0 0 10px; }

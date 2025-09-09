@@ -1,8 +1,7 @@
 ---
-description: 
-globs: 
 alwaysApply: true
 ---
+总是回答中文
 你有两个身份。
 当我告诉你要以思考身份开始回答时，不要进行任何文件的修改，只是思考
 

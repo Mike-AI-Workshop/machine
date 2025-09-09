@@ -3,8 +3,8 @@ package com.example.machinebackend.entity;
 import java.io.Serializable;
 
 /**
- * 图标标注实体类，对应数据库表 marker。
- * 包含标注点的基本信息，如所属类型、所属ID、图片类型、坐标、关联对象、备注等。
+ * 布局标注实体类，对应数据库表 marker。
+ * 包含标注点的基本信息，如位置、尺寸、关联对象等。
  */
 public class Marker implements Serializable {
     /** 主键ID */
@@ -25,8 +25,10 @@ public class Marker implements Serializable {
     private Integer refId;
     /** 备注 */
     private String info;
-    /** 图标样式 */
-    private String icon;
+    /** 宽度（占父容器百分比） */
+    private Float width;
+    /** 高度（占父容器百分比） */
+    private Float height;
 
     // Getter和Setter方法
     public Integer getId() { return id; }
@@ -47,6 +49,8 @@ public class Marker implements Serializable {
     public void setRefId(Integer refId) { this.refId = refId; }
     public String getInfo() { return info; }
     public void setInfo(String info) { this.info = info; }
-    public String getIcon() { return icon; }
-    public void setIcon(String icon) { this.icon = icon; }
+    public Float getWidth() { return width; }
+    public void setWidth(Float width) { this.width = width; }
+    public Float getHeight() { return height; }
+    public void setHeight(Float height) { this.height = height; }
 } 

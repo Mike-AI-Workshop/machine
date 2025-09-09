@@ -65,6 +65,10 @@
                 <span class="device-number">{{ device.number }}</span>
     </div>
               <p class="device-description">{{ device.description || '暂无描述' }}</p>
+              <div class="device-path-info">
+                <el-icon><Files /></el-icon>
+                <span>{{ formatDevicePath(device) }}</span>
+              </div>
               <div class="device-card-actions">
                 <el-button v-if="authStore.isAdmin" size="small" @click="openEdit(device)">编辑</el-button>
                 <el-button v-if="authStore.isAdmin" size="small" type="danger" @click="delDevice(device)">删除</el-button>
@@ -80,8 +84,11 @@
       <el-card class="visual-preview-panel" shadow="never">
         <template #header>
           <div class="panel-header">
-            <span>机柜可视化预览</span>
-            <el-button v-if="authStore.isAdmin" type="primary" :icon="Edit" text @click="imageEditVisible = true">编辑布局</el-button>
+            <span>{{ fullPathName }}</span>
+            <div>
+              <el-button :icon="ViewIcon" text @click="handlePreviewImage" :disabled="!currentImageUrl">全屏预览</el-button>
+              <el-button v-if="authStore.isAdmin" type="primary" :icon="Edit" text @click="imageEditVisible = true">编辑布局</el-button>
+            </div>
       </div>
         </template>
         <div class="preview-controls">
@@ -91,14 +98,14 @@
           </el-radio-group>
         </div>
         <div class="image-preview-container">
-          <img :src="currentImageUrl" class="preview-image" v-if="currentImageUrl" />
+          <img :src="currentImageUrl" class="preview-image" v-if="currentImageUrl" ref="previewImageRef" />
           <el-empty description="暂无图片" v-else />
           <!-- 渲染Marker -->
           <div
             v-for="marker in markersToShow"
             :key="marker.id"
             class="preview-marker"
-            :style="{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }"
+            :style="previewMarkerStyle(marker)"
           >
             <el-popover
               placement="right"
@@ -106,10 +113,11 @@
               width="250"
             >
               <template #reference>
-                <el-button size="small" :type="marker.refId ? 'primary' : 'warning'" plain>
-              <span>{{ marker.icon || '🔘' }}</span>
-                  <span>{{ getDeviceName(marker.refId) || '[未关联]' }}</span>
-            </el-button>
+                <div class="marker-image-wrapper">
+                  <img :src="getDeviceImageUrl(marker.refId)" class="marker-image" v-if="getDeviceImageUrl(marker.refId)" />
+                  <span v-else>📷</span> <!-- 图片不存在时的后备显示 -->
+                  <div class="marker-label">{{ getDeviceName(marker.refId) || '[未关联]' }}</div>
+                </div>
               </template>
               <!-- Popover内容 -->
               <div class="marker-popover-content">
@@ -127,19 +135,57 @@
     </div>
 
     <!-- 3. 弹窗 -->
+    <!-- 带标注的全屏预览弹窗 -->
+    <el-dialog v-model="fullscreenPreviewVisible" fullscreen custom-class="fullscreen-preview-dialog">
+      <div class="fullscreen-preview-body">
+        <div class="image-marker-wrapper">
+          <img :src="currentImageUrl" class="fullscreen-image" />
+          <!-- Marker渲染 (复用逻辑) -->
+          <div
+            v-for="marker in markersToShow"
+            :key="marker.id"
+            class="preview-marker"
+            :style="previewMarkerStyle(marker)"
+          >
+            <el-popover
+              placement="right"
+              trigger="click"
+              width="250"
+            >
+              <template #reference>
+                <div class="marker-image-wrapper">
+                  <img :src="getDeviceImageUrl(marker.refId)" class="marker-image" v-if="getDeviceImageUrl(marker.refId)" />
+                  <span v-else>📷</span>
+                  <div class="marker-label">{{ getDeviceName(marker.refId) || '[未关联]' }}</div>
+                </div>
+              </template>
+              <div class="marker-popover-content">
+                <h4>{{ getDeviceName(marker.refId) || '[未关联]' }}</h4>
+                <p><strong>类型:</strong> 设备</p>
+                <p><strong>备注:</strong> {{ marker.info || '无' }}</p>
+                <div class="popover-actions">
+                  <el-button size="small" @click="goInterfaceList({ id: marker.refId })" v-if="marker.refId">管理接口</el-button>
+                </div>
+              </div>
+            </el-popover>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- 新增/编辑设备弹窗 -->
     <el-dialog v-model="editVisible" :title="editMode === 'add' ? '新增设备' : '编辑设备'" width="500px">
       <el-form :model="editForm" label-width="80px">
         <el-form-item label="名称"><el-input v-model="editForm.name" /></el-form-item>
         <el-form-item label="编号"><el-input v-model="editForm.number" /></el-form-item>
         <el-form-item label="正面图片" v-if="authStore.isAdmin">
-          <el-upload action="/api/images" :show-file-list="false" :on-success="handleDeviceFrontUploadSuccess" :data="{ type: 'device_front' }">
+          <el-upload action="/api/images" :headers="uploadHeaders" :show-file-list="false" :on-success="handleDeviceFrontUploadSuccess" :data="{ type: 'device_front' }">
             <el-button>上传图片</el-button>
           </el-upload>
           <img v-if="editForm.imageFrontUrl" :src="editForm.imageFrontUrl" class="upload-preview" />
         </el-form-item>
         <el-form-item label="背面图片" v-if="authStore.isAdmin">
-          <el-upload action="/api/images" :show-file-list="false" :on-success="handleDeviceBackUploadSuccess" :data="{ type: 'device_back' }">
+          <el-upload action="/api/images" :headers="uploadHeaders" :show-file-list="false" :on-success="handleDeviceBackUploadSuccess" :data="{ type: 'device_back' }">
             <el-button>上传图片</el-button>
           </el-upload>
           <img v-if="editForm.imageBackUrl" :src="editForm.imageBackUrl" class="upload-preview" />
@@ -187,19 +233,32 @@
                @mousedown.stop="handleMarkerMouseDown(marker, $event)">
               <el-popover placement="top" trigger="hover" :content="getDeviceName(marker.refId) || '[未关联]'" :hide-after="0">
                  <template #reference>
-                    <el-button size="small" :type="marker.refId ? 'primary' : 'warning'" plain>
-                      <span>{{ marker.icon || '🔘' }}</span>
-                      <span>{{ getDeviceName(marker.refId) || '[新标注]' }}</span>
-                    </el-button>
+                    <div class="marker-image-wrapper-editor">
+                      <img :src="getDeviceImageUrl(marker.refId)" class="marker-image" v-if="getDeviceImageUrl(marker.refId)" draggable="false" />
+                      <div class="marker-fallback" v-else>
+                         <span>📷</span>
+                         <span>[无图]</span>
+                      </div>
+                      <!-- vvvv 新增的缩放手柄 vvvv -->
+                      <div
+                        v-if="authStore.isAdmin && editorMode === 'move_marker'"
+                        class="resize-handle"
+                        @mousedown.stop="onResizeHandleMouseDown(marker, $event)"
+                      ></div>
+                    </div>
                  </template>
               </el-popover>
           </div>
           <!-- 临时Marker -->
-          <div v-if="showTempMarker" class="editor-marker temp-marker" :style="tempMarkerStyleInEditor" @mousedown.stop="onTempMarkerMouseDown">
-            <el-button size="small">
-              <span>{{ tempMarker.icon || '🔘' }}</span>
-              <span>{{ getDeviceName(tempMarker.refId) || '[新标注]' }}</span>
-            </el-button>
+          <div v-if="showTempMarker" class="editor-marker temp-marker" :style="markerStyleInEditor(tempMarker)" @mousedown.stop="onTempMarkerMouseDown">
+            <div class="marker-image-wrapper-editor">
+              <img :src="getDeviceImageUrl(tempMarker.refId)" class="marker-image" v-if="getDeviceImageUrl(tempMarker.refId)" draggable="false" />
+              <div class="marker-fallback" v-else>
+                <span>📷</span>
+                <span>[无图]</span>
+              </div>
+              <div class="resize-handle" @mousedown.stop="onTempMarkerResizeMouseDown"></div>
+            </div>
             <div class="temp-marker-actions">
               <el-button size="small" type="danger" @click.stop="onTempMarkerDelete">删除</el-button>
               <el-button size="small" type="primary" @click.stop="onTempMarkerConfirm">确定位置</el-button>
@@ -210,11 +269,8 @@
        <!-- Marker信息填写弹窗 (嵌套) -->
       <el-dialog v-model="addMarkerDialogVisible" title="添加/编辑标注" width="400px" append-to-body>
         <el-form :model="markerForm" label-width="80px">
-          <el-form-item label="图标">
-            <el-select v-model="markerForm.icon" style="width:100%"><el-option v-for="icon in iconOptions" :key="icon" :label="icon" :value="icon" /></el-select>
-          </el-form-item>
           <el-form-item label="关联对象">
-            <el-select v-model="markerForm.refId" style="width:100%"><el-option v-for="dev in devices" :key="dev.id" :label="dev.name" :value="dev.id" /></el-select>
+            <el-select v-model="markerForm.refId" style="width:100%" @change="onMarkerDeviceChange"><el-option v-for="dev in devices" :key="dev.id" :label="dev.name" :value="dev.id" /></el-select>
           </el-form-item>
           <el-form-item label="备注"><el-input v-model="markerForm.info" /></el-form-item>
         </el-form>
@@ -232,8 +288,8 @@
 import { ref, onMounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Plus, Edit, ZoomIn, ZoomOut } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElImageViewer } from 'element-plus'
+import { ArrowLeft, Plus, Edit, ZoomIn, ZoomOut, View as ViewIcon, Files } from '@element-plus/icons-vue'
 import { useAuthStore } from '../../store/auth'
 
 const authStore = useAuthStore();
@@ -241,6 +297,7 @@ const route = useRoute()
 const router = useRouter()
 const cabinetId = ref(route.query.cabinetId)
 const cabinetName = ref('')
+const fullPathName = ref('加载中...') // 新增状态，用于显示完整路径
 
 // --- 核心数据 ---
 const devices = ref([])
@@ -254,6 +311,7 @@ const showFront = ref(true)
 const editVisible = ref(false)
 const imageEditVisible = ref(false)
 const addMarkerDialogVisible = ref(false)
+const fullscreenPreviewVisible = ref(false)
 
 // --- 表单与临时状态 ---
 const editMode = ref('add')
@@ -262,7 +320,6 @@ const markerEditMode = ref('add')
 const markerForm = ref({})
 const tempMarker = ref({})
 const showTempMarker = ref(false)
-const tempMarkerPos = ref({ x: 0.5, y: 0.5 })
 
 // --- 图片编辑器状态 ---
 const imageScale = ref(1)
@@ -274,24 +331,52 @@ const dragOffset = ref({ x: 0, y: 0 }) // For smooth dragging
 const imageAreaRef = ref(null)
 const transformWrapperRef = ref(null)
 const draggingMarker = ref(null)
+const previewImageRef = ref(null) // Ref for preview image
+const imageRenderScale = ref(1) // Scale of the rendered image in preview
+const resizingMarker = ref(null);
+const resizeAspectRatio = ref(1); // For aspect-ratio locked scaling
 const iconOptions = ['🔘','⭐','⚡','🔒','🔑','📌','📎','🖲️','🖱️','🖥️','💡','🔌','🔋']
+
+const uploadHeaders = computed(() => {
+  return {
+    Authorization: `Bearer ${authStore.token}`
+  }
+});
 
 // --- 计算属性 ---
 const currentImageUrl = computed(() => showFront.value ? cabinetFrontUrl.value : cabinetBackUrl.value)
 const markersToShow = computed(() => showFront.value ? frontMarkers.value : backMarkers.value)
 const getDeviceName = (id) => devices.value.find(d => d.id === id)?.name
+const getDeviceImageUrl = (id) => {
+  const device = devices.value.find(d => d.id === id);
+  // 优先返回正面图，如果没有则返回空字符串
+  return device ? device.imageFrontUrl : '';
+};
+
+const formatDevicePath = (device) => {
+  if (!device || !device.roomName) return '路径信息不可用';
+  return `${device.roomName} / ${device.rowName} / ${device.cabinetName}`;
+};
+
+const previewMarkerStyle = (marker) => ({
+  position: 'absolute',
+  left: `${marker.x * 100}%`,
+  top: `${marker.y * 100}%`,
+  width: `${marker.width * 100}%`,
+  height: `${marker.height * 100}%`,
+  transform: `translate(-50%, -50%)`,
+  transformOrigin: 'center center'
+});
 
 const transformWrapperStyle = computed(() => ({
   transform: `translate(${imageOffset.value.x}px, ${imageOffset.value.y}px) scale(${imageScale.value})`,
 }))
 const markerStyleInEditor = (marker) => ({
   position: 'absolute', left: `${marker.x * 100}%`, top: `${marker.y * 100}%`,
+  width: `${marker.width * 100}%`,
+  height: `${marker.height * 100}%`,
   transform: 'translate(-50%, -50%)', cursor: authStore.isAdmin && editorMode.value === 'move_marker' ? 'grab' : 'pointer'
 })
-const tempMarkerStyleInEditor = computed(() => ({
-  position: 'absolute', left: `${tempMarkerPos.value.x * 100}%`, top: `${tempMarkerPos.value.y * 100}%`,
-  transform: 'translate(-50%, -50%)', cursor: 'grab'
-}))
 
 // --- 数据加载 ---
 async function fetchAllData() {
@@ -304,7 +389,11 @@ async function fetchCabinetDetails() {
     const res = await axios.get(`/api/cabinets/${cabinetId.value}`)
     if (res.data.code === 0) {
       const cab = res.data.data
-      cabinetName.value = cab.name
+      cabinetName.value = cab.name // 保留以便在其他地方可能需要单独使用
+      // 如果设备列表为空，至少可以显示机柜名
+      if (devices.value.length === 0) {
+        fullPathName.value = cab.name;
+      }
       if (cab.imageFront) cabinetFrontUrl.value = (await axios.get(`/api/images/${cab.imageFront}`)).data.data.url
       if (cab.imageBack) cabinetBackUrl.value = (await axios.get(`/api/images/${cab.imageBack}`)).data.data.url
     }
@@ -315,22 +404,44 @@ async function fetchDevices() {
     const res = await axios.get('/api/devices', { params: { cabinetId: cabinetId.value } });
     if (res.data.code !== 0) {
       devices.value = [];
+      // 即使没有设备，也要尝试使用已有的机柜名
+      fullPathName.value = cabinetName.value || '未知机柜';
       return;
     }
 
     const fetchedDevices = res.data.data || [];
 
-    // 并行获取所有设备的图片URL
-    const devicesWithUrls = await Promise.all(
+    // 更新路径信息
+    if (fetchedDevices.length > 0) {
+      const firstDevice = fetchedDevices[0];
+      fullPathName.value = `${firstDevice.roomName} / ${firstDevice.rowName} / ${firstDevice.cabinetName}`;
+    } else {
+      // 没有设备，则路径名回退为机柜名（可能已在fetchCabinetDetails中设置）
+      fullPathName.value = cabinetName.value || '该机柜下暂无设备';
+    }
+
+    // 为每个设备预加载图片并获取其元数据
+    const devicesWithMetadata = await Promise.all(
         fetchedDevices.map(async (device) => {
           let imageFrontUrl = '';
           let imageBackUrl = '';
+          let naturalWidth = 1;
+          let naturalHeight = 1;
 
           if (device.imageFront) {
             try {
               const imgRes = await axios.get(`/api/images/${device.imageFront}`);
               if (imgRes.data.code === 0) {
                 imageFrontUrl = imgRes.data.data.url;
+                // Preload image to get dimensions
+                const dimensions = await new Promise((resolve) => {
+                  const img = new Image();
+                  img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+                  img.onerror = () => resolve({ w: 1, h: 1 }); // Default on error
+                  img.src = imageFrontUrl;
+                });
+                naturalWidth = dimensions.w;
+                naturalHeight = dimensions.h;
               }
             } catch (e) {
               console.error(`Failed to fetch front image for device ${device.id}`, e);
@@ -348,11 +459,11 @@ async function fetchDevices() {
             }
           }
 
-          return { ...device, imageFrontUrl, imageBackUrl };
+          return { ...device, imageFrontUrl, imageBackUrl, naturalWidth, naturalHeight };
         })
     );
 
-    devices.value = devicesWithUrls;
+    devices.value = devicesWithMetadata;
   } catch (error) {
     console.error("Failed to fetch devices:", error);
     devices.value = [];
@@ -381,10 +492,33 @@ function openEdit(row) {
   editVisible.value = true
 }
 async function delDevice(row) {
-  await ElMessageBox.confirm(`确定删除设备 "${row.name}" 吗?`, '警告', { type: 'warning' })
-  await axios.delete(`/api/devices/${row.id}`)
-  ElMessage.success('删除成功')
-  fetchDevices()
+  await ElMessageBox.confirm(`确定删除设备 "${row.name}" 吗? 其在布局图上的所有关联标注也将被一并删除。`, '警告', { type: 'warning' })
+
+  try {
+    // 1. 找出所有与该设备关联的标注
+    const markersToDelete = [
+      ...frontMarkers.value.filter(m => m.refId === row.id),
+      ...backMarkers.value.filter(m => m.refId === row.id)
+    ];
+
+    // 2. 删除设备本身
+    await axios.delete(`/api/devices/${row.id}`)
+
+    // 3. 如果设备删除成功, 则继续删除其所有关联的标注
+    if (markersToDelete.length > 0) {
+      const deletePromises = markersToDelete.map(marker => axios.delete(`/api/markers/${marker.id}`));
+      await Promise.all(deletePromises);
+    }
+
+    ElMessage.success('设备及关联标注已成功删除');
+    
+    // 4. 刷新所有数据，而不是只刷新设备列表
+    fetchAllData();
+
+  } catch (error) {
+    console.error("删除设备或其关联标注时出错:", error);
+    ElMessage.error("删除操作失败，请稍后重试。");
+  }
 }
 async function submitEdit() {
   const payload = { ...editForm.value };
@@ -428,15 +562,19 @@ const handleDeviceBackUploadSuccess = (res) => handleDeviceImageUploadSuccess(re
 // --- Marker编辑器核心逻辑 ---
 function startAddMarker() {
   markerEditMode.value = 'add'
-  markerForm.value = { icon: '🔘', refId: null, info: '' }
+  markerForm.value = { refId: null, info: '', width: 0.1, height: 0.1 }
   addMarkerDialogVisible.value = true
 }
 
 function onMarkerFormConfirm() {
   if (markerEditMode.value === 'add') {
-    tempMarker.value = { ...markerForm.value, name: getDeviceName(markerForm.value.refId) }
+    tempMarker.value = { 
+      ...markerForm.value,
+      name: getDeviceName(markerForm.value.refId),
+      x: 0.5,
+      y: 0.5
+    }
     showTempMarker.value = true
-    tempMarkerPos.value = { x: 0.5, y: 0.5 }
     ElMessage.info('请在图上点选位置，然后点击"确定位置"')
   } else { // edit mode
     const markerToUpdate = { ...markerForm.value }
@@ -463,31 +601,66 @@ async function deleteMarker() {
 }
 
 function onTempMarkerMouseDown(e) {
-  const rect = e.currentTarget.getBoundingClientRect();
-  const imageRect = transformWrapperRef.value.getBoundingClientRect();
-  dragOffset.value = {
-    x: (e.clientX - rect.left) / imageRect.width,
-    y: (e.clientY - rect.top) / imageRect.height
-  };
-  
+  // 不再计算偏移，直接准备移动
   window.addEventListener('mousemove', onTempMarkerMouseMove)
   window.addEventListener('mouseup', onTempMarkerMouseUp)
 }
 function onTempMarkerMouseMove(e) {
-  const rect = transformWrapperRef.value.getBoundingClientRect()
-  tempMarkerPos.value.x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width - dragOffset.value.x))
-  tempMarkerPos.value.y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height - dragOffset.value.y))
+  const imageRect = transformWrapperRef.value.getBoundingClientRect()
+  const mouseXPercent = (e.clientX - imageRect.left) / imageRect.width;
+  const mouseYPercent = (e.clientY - imageRect.top) / imageRect.height;
+  
+  // 直接将标注中心点设置为鼠标位置
+  tempMarker.value.x = mouseXPercent;
+  tempMarker.value.y = mouseYPercent;
 }
 function onTempMarkerMouseUp() {
   window.removeEventListener('mousemove', onTempMarkerMouseMove)
   window.removeEventListener('mouseup', onTempMarkerMouseUp)
 }
+
+function onTempMarkerResizeMouseDown(e) {
+  dragStart.value = { x: e.clientX, y: e.clientY };
+
+  const imageRect = transformWrapperRef.value.getBoundingClientRect();
+  dragOffset.value = {
+    width: tempMarker.value.width * imageRect.width,
+    height: tempMarker.value.height * imageRect.height
+  };
+  
+  // 不再计算宽高比
+  // const device = devices.value.find(d => d.id === tempMarker.value.refId);
+  // if (device && device.naturalWidth && device.naturalHeight) {
+  //   resizeAspectRatio.value = device.naturalWidth / device.naturalHeight;
+  // } else {
+  //   resizeAspectRatio.value = 1;
+  // }
+
+  window.addEventListener('mousemove', onTempMarkerResizeMouseMove);
+  window.addEventListener('mouseup', onTempMarkerResizeMouseUp);
+}
+
+function onTempMarkerResizeMouseMove(e) {
+  const dx = e.clientX - dragStart.value.x;
+  const dy = e.clientY - dragStart.value.y;
+  const imageRect = transformWrapperRef.value.getBoundingClientRect();
+  const newWidthPx = Math.max(20, dragOffset.value.width + dx);
+  const newHeightPx = Math.max(20, dragOffset.value.height + dy);
+
+  tempMarker.value.width = newWidthPx / imageRect.width;
+  tempMarker.value.height = newHeightPx / imageRect.height;
+}
+
+function onTempMarkerResizeMouseUp() {
+  window.removeEventListener('mousemove', onTempMarkerResizeMouseMove);
+  window.removeEventListener('mouseup', onTempMarkerResizeMouseUp);
+}
+
 function onTempMarkerDelete() { showTempMarker.value = false }
 async function onTempMarkerConfirm() {
   const markerData = {
     parentType: 'cabinet', parentId: cabinetId.value,
     imageType: showFront.value ? 'front' : 'back',
-    x: tempMarkerPos.value.x, y: tempMarkerPos.value.y,
     refType: 'device', // 强制类型
     name: getDeviceName(tempMarker.value.refId) || '新标注', // 自动生成name
     ...tempMarker.value
@@ -503,33 +676,33 @@ async function onTempMarkerConfirm() {
 function handleMarkerMouseDown(marker, e) {
   if (authStore.isAdmin && editorMode.value === 'move_marker') {
     draggingMarker.value = marker;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const imageRect = transformWrapperRef.value.getBoundingClientRect();
-    dragOffset.value = {
-        x: (e.clientX - rect.left) / imageRect.width,
-        y: (e.clientY - rect.top) / imageRect.height,
-    };
+    // 不再计算偏移，直接准备移动
     window.addEventListener('mousemove', handleMarkerMouseMove)
     window.addEventListener('mouseup', handleMarkerMouseUp)
   } else {
-      markerEditMode.value = 'edit'
-      markerForm.value = { ...marker }
-      addMarkerDialogVisible.value = true
+    markerEditMode.value = 'edit'
+    markerForm.value = { ...marker }
+    addMarkerDialogVisible.value = true
   }
 }
 function handleMarkerMouseMove(e) {
   if (!draggingMarker.value) return
-  const rect = transformWrapperRef.value.getBoundingClientRect()
-  draggingMarker.value.x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width - dragOffset.value.x))
-  draggingMarker.value.y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height - dragOffset.value.y))
+  const imageRect = transformWrapperRef.value.getBoundingClientRect()
+  const mouseXPercent = (e.clientX - imageRect.left) / imageRect.width;
+  const mouseYPercent = (e.clientY - imageRect.top) / imageRect.height;
+
+  // 直接将标注中心点设置为鼠标位置
+  draggingMarker.value.x = mouseXPercent;
+  draggingMarker.value.y = mouseYPercent;
 }
 async function handleMarkerMouseUp() {
-  if (draggingMarker.value) {
-    await axios.put(`/api/markers/${draggingMarker.value.id}`, draggingMarker.value)
-    draggingMarker.value = null
-  }
   window.removeEventListener('mousemove', handleMarkerMouseMove)
   window.removeEventListener('mouseup', handleMarkerMouseUp)
+
+  if (draggingMarker.value) {
+    await axios.put(`/api/markers/${draggingMarker.value.id}`, draggingMarker.value)
+    draggingMarker.value = null // 双保险
+  }
 }
 
 // --- 缩放/平移 ---
@@ -541,17 +714,71 @@ function toggleEditorMode(mode) {
 }
 
 function onImageMouseDown(e) {
-  if (authStore.isAdmin && editorMode.value !== 'move_image') return
-  dragStart.value = { x: e.clientX - imageOffset.value.x, y: e.clientY - imageOffset.value.y }
+  // 只有在 'move_image' 模式下才允许拖动图片
+  if (!authStore.isAdmin || editorMode.value !== 'move_image') return;
+  
+  dragStart.value = { 
+    x: e.clientX - imageOffset.value.x, 
+    y: e.clientY - imageOffset.value.y 
+  }
   window.addEventListener('mousemove', onImageMouseMove)
   window.addEventListener('mouseup', onImageMouseUp)
 }
 function onImageMouseMove(e) {
-  imageOffset.value = { x: e.clientX - dragStart.value.x, y: e.clientY - dragStart.value.y }
+  imageOffset.value = { 
+    x: e.clientX - dragStart.value.x, 
+    y: e.clientY - dragStart.value.y 
+  }
 }
 function onImageMouseUp() {
   window.removeEventListener('mousemove', onImageMouseMove)
   window.removeEventListener('mouseup', onImageMouseUp)
+}
+
+function onResizeHandleMouseDown(marker, e) {
+  resizingMarker.value = marker;
+  dragStart.value = { x: e.clientX, y: e.clientY };
+
+  const imageRect = transformWrapperRef.value.getBoundingClientRect();
+  dragOffset.value = {
+    width: marker.width * imageRect.width,
+    height: marker.height * imageRect.height
+  };
+  
+  // 不再计算宽高比
+  // const device = devices.value.find(d => d.id === marker.refId);
+  // if (device && device.naturalWidth && device.naturalHeight) {
+  //   resizeAspectRatio.value = device.naturalWidth / device.naturalHeight;
+  // } else {
+  //   resizeAspectRatio.value = 1;
+  // }
+
+  window.addEventListener('mousemove', onResizeHandleMouseMove);
+  window.addEventListener('mouseup', onResizeHandleMouseUp);
+}
+
+function onResizeHandleMouseMove(e) {
+  if (!resizingMarker.value) return;
+
+  const dx = e.clientX - dragStart.value.x;
+  const dy = e.clientY - dragStart.value.y;
+  const imageRect = transformWrapperRef.value.getBoundingClientRect();
+  const newWidthPx = Math.max(20, dragOffset.value.width + dx);
+  const newHeightPx = Math.max(20, dragOffset.value.height + dy);
+
+  resizingMarker.value.width = newWidthPx / imageRect.width;
+  // 不再使用等比缩放
+  resizingMarker.value.height = newHeightPx / imageRect.height;
+}
+
+async function onResizeHandleMouseUp() {
+  window.removeEventListener('mousemove', onResizeHandleMouseMove);
+  window.removeEventListener('mouseup', onResizeHandleMouseUp);
+
+  if (resizingMarker.value) {
+    await axios.put(`/api/markers/${resizingMarker.value.id}`, resizingMarker.value);
+    resizingMarker.value = null; // 双保险
+  }
 }
 
 function saveImageEdit() {
@@ -565,11 +792,54 @@ function goInterfaceList(row) {
 }
 function goBack() { router.back() }
 
+function updateImageRenderScale() {
+  if (!previewImageRef.value || !previewImageRef.value.complete) return;
+  const { offsetWidth, naturalWidth } = previewImageRef.value;
+  if (naturalWidth > 0) {
+    imageRenderScale.value = offsetWidth / naturalWidth;
+  }
+}
+
+let resizeObserver = null;
+watch(previewImageRef, (newEl) => {
+  if (newEl) {
+    newEl.onload = () => {
+      updateImageRenderScale();
+      if (resizeObserver) resizeObserver.disconnect();
+      const parentContainer = newEl.parentElement;
+      if (parentContainer) {
+        resizeObserver = new ResizeObserver(updateImageRenderScale);
+        resizeObserver.observe(parentContainer);
+      }
+    };
+  } else {
+    if (resizeObserver) resizeObserver.disconnect();
+  }
+});
+
+function handlePreviewImage() {
+  if (currentImageUrl.value) {
+    fullscreenPreviewVisible.value = true;
+  }
+}
+
+function onMarkerDeviceChange(deviceId) {
+  if (!deviceId) return;
+  const device = devices.value.find(d => d.id === deviceId);
+  if (!device) return;
+
+  const INITIAL_SIZE = 0.15; // 初始尺寸设为父容器的15%
+  
+  // 改为设置固定的初始宽高
+  markerForm.value.width = INITIAL_SIZE;
+  markerForm.value.height = INITIAL_SIZE;
+}
+
 onMounted(fetchAllData)
 </script>
 
 <style scoped>
-.device-list-container { padding: 24px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box; }
+.device-list-container { padding: 24px; display: flex; flex-direction: column; box-sizing: border-box; }
 .action-bar { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
 .action-bar-left { display: flex; align-items: center; gap: 16px; }
 .page-title-with-context {
@@ -585,10 +855,17 @@ onMounted(fetchAllData)
 }
 .main-content { display: flex; gap: 24px; flex-grow: 1; overflow: hidden; }
 .device-list-panel { width: 40%; display: flex; flex-direction: column; }
-.visual-preview-panel { width: 60%; }
+.visual-preview-panel { width: 60%; display: flex; flex-direction: column; }
 .panel-header { display: flex; justify-content: space-between; align-items: center; }
+.visual-preview-panel .el-card__body {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 防止子元素溢出 */
+}
 .device-list-panel .el-card__body {
-  height: 100%;
+  flex-grow: 1;
+  overflow: hidden;
   padding: 0;
   display: flex; /* For el-empty centering */
   flex-direction: column;
@@ -596,7 +873,6 @@ onMounted(fetchAllData)
 .device-list-scroll-container {
   flex-grow: 1;
   overflow-y: auto;
-  padding: 20px;
 }
 .device-card {
   display: flex;
@@ -662,6 +938,16 @@ onMounted(fetchAllData)
   text-overflow: ellipsis;
   min-height: 40px; /* approx 2 lines */
 }
+.device-path-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #909399;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f2f2f2;
+}
 .device-card-actions {
   position: absolute;
   bottom: 16px;
@@ -671,24 +957,105 @@ onMounted(fetchAllData)
   opacity: 0;
   transition: opacity 0.3s;
 }
-.preview-controls { margin-bottom: 16px; }
-.image-preview-container { position: relative; width: 100%; height: calc(100% - 48px); background: #f5f7fa; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+.preview-controls { margin-bottom: 16px; flex-shrink: 0; }
+.image-preview-container {
+  position: relative;
+  background: #f5f7fa;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-grow: 1;
+  min-height: 0; /* Flexbox hack for overflow */
+}
 .preview-image { max-width: 100%; max-height: 100%; object-fit: contain; }
 .preview-marker { position: absolute; transform: translate(-50%, -50%); }
 .marker-popover-content h4 { margin: 0 0 10px; }
 .marker-popover-content p { margin: 4px 0; font-size: 14px; }
 .popover-actions { margin-top: 10px; text-align: right; }
 
-/* Fullscreen Editor */
+/* Marker中图片容器的通用样式 */
+.marker-image-wrapper, .marker-image-wrapper-editor {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Marker中的图片样式 */
+.marker-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* 使用 contain 以显示完整图片 */
+}
+
+/* 预览模式下的标签样式 */
+.marker-label {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 12px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* 图片不存在时的后备样式 */
+.marker-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #909399;
+}
+
+/* 缩放手柄的样式 */
+.resize-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  right: -6px;
+  bottom: -6px;
+  background: #409eff;
+  border: 1px solid white;
+  border-radius: 50%;
+  cursor: se-resize;
+  z-index: 10;
+}
+
+/* Fullscreen Editor Dialog */
 .fullscreen-editor-dialog .el-dialog__header { padding: 0; }
 .fullscreen-editor-dialog .el-dialog__body { padding: 0; height: 100%; }
 .editor-toolbar { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 8px 16px; border-bottom: 1px solid #dcdfe6; }
 .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 16px; }
-.editor-area { height: calc(100vh - 55px); background-color: #f0f2f5; overflow: hidden; position: relative; }
+.editor-area {
+  height: calc(100vh - 55px);
+  background-color: #f0f2f5;
+  overflow: auto;
+  position: relative;
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none;    /* Firefox */
+  -ms-user-select: none;     /* IE/Edge */
+  user-select: none;         /* Standard */
+}
 .transform-wrapper { position: absolute; transform-origin: top left; }
 .editable-image { cursor: grab; }
 .editor-marker { position: absolute; }
-.editor-marker.temp-marker { z-index: 10; border: 2px dashed #f56c6c; padding: 5px; border-radius: 4px; background: rgba(255,255,255,0.8); }
+.editor-marker.temp-marker {
+  z-index: 10;
+  border: 2px dashed #f56c6c;
+  padding: 0;
+  background: rgba(255,255,255,0.8);
+}
 .temp-marker-actions { position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
 
 .upload-preview {
@@ -698,5 +1065,30 @@ onMounted(fetchAllData)
   border-radius: 6px;
   border: 1px solid #dcdfe6;
   object-fit: cover;
+}
+
+/* Fullscreen Preview Dialog */
+.fullscreen-preview-dialog .el-dialog__body {
+  height: 100%;
+  padding: 0;
+  overflow: hidden; /* 防止dialog自身滚动 */
+}
+.fullscreen-preview-body {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: auto; /* 允许内容区滚动 */
+  background-color: #000;
+}
+.image-marker-wrapper {
+  display: inline-block; /* 核心技巧：让wrapper尺寸自适应图片 */
+  position: relative;
+}
+.fullscreen-image {
+  max-width: 100%;
+  max-height: 100%;
+  display: block; /* 消除图片下方的空隙 */
 }
 </style> 

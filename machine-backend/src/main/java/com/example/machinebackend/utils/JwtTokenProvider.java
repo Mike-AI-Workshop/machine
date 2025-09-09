@@ -5,6 +5,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -14,16 +16,14 @@ import java.util.Date;
 @Component
 public class JwtTokenProvider {
 
-    @Value("${app.jwtSecret}")
-    private String jwtSecret;
+    private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
 
-    @Value("${app.jwtExpirationInMs}")
-    private int jwtExpirationInMs;
+    private final Key key;
+    private final int jwtExpirationInMs;
 
-    private Key key;
-
-    @jakarta.annotation.PostConstruct
-    public void init() {
+    public JwtTokenProvider(@Value("${app.jwtSecret}") String jwtSecret,
+                            @Value("${app.jwtExpirationInMs}") int jwtExpirationInMs) {
+        this.jwtExpirationInMs = jwtExpirationInMs;
         this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
@@ -65,7 +65,8 @@ public class JwtTokenProvider {
             Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(authToken);
             return true;
         } catch (Exception ex) {
-            // Can log the exception details here
+            // Log the exception details here
+            logger.error("Invalid JWT token: {}", ex.getMessage());
         }
         return false;
     }

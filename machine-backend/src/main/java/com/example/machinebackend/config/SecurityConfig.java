@@ -45,6 +45,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/images/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/change-password").authenticated()
+                        .requestMatchers("/api/content/home").permitAll()
                         .requestMatchers(HttpMethod.GET, "/upload/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/**").hasAuthority("ROLE_ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/**").hasAuthority("ROLE_ADMIN")
@@ -62,13 +65,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // 允许的源
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+        // 允许来自任何源的请求
+        configuration.setAllowedOriginPatterns(List.of("*")); // <-- 使用 setAllowedOriginPatterns
         // 允许的方法
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         // 允许的头
         configuration.setAllowedHeaders(List.of("*"));
-        // 是否允许凭证
+        // 允许发送凭证（如Cookie）
         configuration.setAllowCredentials(true);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

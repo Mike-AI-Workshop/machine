@@ -1,6 +1,7 @@
 package com.example.machinebackend.controller;
 
 import com.example.machinebackend.dto.AuthResponse;
+import com.example.machinebackend.dto.ChangePasswordRequest;
 import com.example.machinebackend.dto.LoginRequest;
 import com.example.machinebackend.dto.RegisterRequest;
 import com.example.machinebackend.entity.User;
@@ -9,6 +10,8 @@ import com.example.machinebackend.utils.JwtTokenProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -40,6 +43,26 @@ public class AuthController {
 
         String token = tokenProvider.generateToken(user);
         return ResponseEntity.ok(new AuthResponse(token));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest changePasswordRequest,
+                                            @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails == null) {
+            return new ResponseEntity<>("User not authenticated", HttpStatus.UNAUTHORIZED);
+        }
+
+        User user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found in repository"));
+
+        if (!passwordEncoder.matches(changePasswordRequest.getOldPassword(), user.getPasswordHash())) {
+            return new ResponseEntity<>("Invalid old password", HttpStatus.BAD_REQUEST);
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(changePasswordRequest.getNewPassword()));
+        userRepository.save(user);
+
+        return new ResponseEntity<>("Password changed successfully", HttpStatus.OK);
     }
 
     @PostMapping("/register")

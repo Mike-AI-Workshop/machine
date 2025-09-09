@@ -1,20 +1,22 @@
 package com.example.machinebackend.controller;
 
+import com.example.machinebackend.config.CommonResponse;
+import com.example.machinebackend.dto.DeviceWithFullPathDTO;
 import com.example.machinebackend.entity.Device;
 import com.example.machinebackend.service.DeviceService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import java.util.HashMap;
+
 import java.util.List;
-import java.util.Map;
 
 /**
  * DeviceController，提供设备相关的RESTful接口。
+ * 所有接口统一使用CommonResponse作为标准返回结构。
  */
 @RestController
 @RequestMapping("/api/devices")
 public class DeviceController {
-    /** DeviceService依赖，用于业务处理 */
+
     private final DeviceService deviceService;
 
     @Autowired
@@ -23,74 +25,70 @@ public class DeviceController {
     }
 
     /**
-     * 获取指定机柜下的设备列表
+     * 根据机柜ID获取设备列表。
      * @param cabinetId 机柜ID
-     * @return 统一返回结构，包含code和data
+     * @return 包含设备及其路径信息的列表
      */
     @GetMapping
-    public Map<String, Object> getDevicesByCabinetId(@RequestParam Integer cabinetId) {
-        List<Device> devices = deviceService.getDevicesByCabinetId(cabinetId);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 0);
-        result.put("data", devices);
-        return result;
+    public CommonResponse<List<DeviceWithFullPathDTO>> getDevices(@RequestParam Integer cabinetId) {
+        List<DeviceWithFullPathDTO> devices = deviceService.getDevicesWithFullPathByCabinetId(cabinetId);
+        return CommonResponse.success(devices);
     }
 
     /**
      * 获取单个设备详情
      * @param id 设备ID
-     * @return 统一返回结构，包含code和data
+     * @return 单个设备信息
      */
     @GetMapping("/{id}")
-    public Map<String, Object> getDeviceById(@PathVariable Integer id) {
+    public CommonResponse<Device> getDeviceById(@PathVariable Integer id) {
         Device device = deviceService.getDeviceById(id);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 0);
-        result.put("data", device);
-        return result;
+        return CommonResponse.success(device);
+    }
+
+    /**
+     * 获取单个设备详情, 包含完整路径
+     * @param id 设备ID
+     * @return 单个设备信息 DTO
+     */
+    @GetMapping("/{id}/with-full-path")
+    public CommonResponse<DeviceWithFullPathDTO> getDeviceWithFullPathById(@PathVariable Integer id) {
+        DeviceWithFullPathDTO device = deviceService.getDeviceWithFullPathById(id);
+        return CommonResponse.success(device);
     }
 
     /**
      * 新增设备
      * @param device 设备对象（JSON）
-     * @return 统一返回结构，包含code和data
+     * @return 新增后的设备信息
      */
     @PostMapping
-    public Map<String, Object> addDevice(@RequestBody Device device) {
+    public CommonResponse<Device> addDevice(@RequestBody Device device) {
         Device newDevice = deviceService.addDevice(device);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 0);
-        result.put("data", newDevice);
-        return result;
+        return CommonResponse.success(newDevice);
     }
 
     /**
      * 修改设备
      * @param id 设备ID
      * @param device 设备对象（JSON）
-     * @return 统一返回结构，包含code和data
+     * @return 修改后的设备信息
      */
     @PutMapping("/{id}")
-    public Map<String, Object> updateDevice(@PathVariable Integer id, @RequestBody Device device) {
+    public CommonResponse<Device> updateDevice(@PathVariable Integer id, @RequestBody Device device) {
         device.setId(id);
         Device updatedDevice = deviceService.updateDevice(device);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 0);
-        result.put("data", updatedDevice);
-        return result;
+        return CommonResponse.success(updatedDevice);
     }
 
     /**
      * 删除设备
      * @param id 设备ID
-     * @return 统一返回结构，包含code和message
+     * @return 操作成功信息
      */
     @DeleteMapping("/{id}")
-    public Map<String, Object> deleteDevice(@PathVariable Integer id) {
-        boolean success = deviceService.deleteDeviceById(id);
-        Map<String, Object> result = new HashMap<>();
-        result.put("code", 0);
-        result.put("message", success ? "删除成功" : "删除失败");
-        return result;
+    public CommonResponse<String> deleteDevice(@PathVariable Integer id) {
+        deviceService.deleteDeviceById(id);
+        return CommonResponse.success("删除成功");
     }
 } 

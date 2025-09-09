@@ -5,7 +5,7 @@ import org.apache.ibatis.annotations.*;
 import java.util.List;
 
 /**
- * MarkerMapper接口，负责图标标注表(marker)的数据库操作。
+ * MarkerMapper接口，负责布局标注表(marker)的数据库操作。
  */
 @Mapper
 public interface MarkerMapper {
@@ -16,7 +16,7 @@ public interface MarkerMapper {
      * @param imageType 图片类型（front/back）
      * @return 标注点列表
      */
-    @Select("SELECT id, parent_type, parent_id, image_type, x, y, ref_type, ref_id, info, icon FROM marker WHERE parent_type = #{parentType} AND parent_id = #{parentId} AND image_type = #{imageType}")
+    @Select("SELECT id, parent_type, parent_id, image_type, x, y, ref_type, ref_id, info, width, height FROM marker WHERE parent_type = #{parentType} AND parent_id = #{parentId} AND image_type = #{imageType}")
     List<Marker> selectByParentAndImage(@Param("parentType") String parentType, @Param("parentId") Integer parentId, @Param("imageType") String imageType);
 
     /**
@@ -24,7 +24,7 @@ public interface MarkerMapper {
      * @param id 标注点ID
      * @return 标注点对象
      */
-    @Select("SELECT id, parent_type, parent_id, image_type, x, y, ref_type, ref_id, info, icon FROM marker WHERE id = #{id}")
+    @Select("SELECT id, parent_type, parent_id, image_type, x, y, ref_type, ref_id, info, width, height FROM marker WHERE id = #{id}")
     Marker selectById(@Param("id") Integer id);
 
     /**
@@ -32,7 +32,7 @@ public interface MarkerMapper {
      * @param marker 标注点对象
      * @return 影响行数
      */
-    @Insert("INSERT INTO marker(parent_type, parent_id, image_type, x, y, ref_type, ref_id, info, icon) VALUES(#{parentType}, #{parentId}, #{imageType}, #{x}, #{y}, #{refType}, #{refId}, #{info}, #{icon})")
+    @Insert("INSERT INTO marker(parent_type, parent_id, image_type, x, y, ref_type, ref_id, info, width, height) VALUES(#{parentType}, #{parentId}, #{imageType}, #{x}, #{y}, #{refType}, #{refId}, #{info}, #{width}, #{height})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(Marker marker);
 
@@ -41,7 +41,7 @@ public interface MarkerMapper {
      * @param marker 标注点对象
      * @return 影响行数
      */
-    @Update("UPDATE marker SET parent_type=#{parentType}, parent_id=#{parentId}, image_type=#{imageType}, x=#{x}, y=#{y}, ref_type=#{refType}, ref_id=#{refId}, info=#{info}, icon=#{icon} WHERE id=#{id}")
+    @Update("UPDATE marker SET parent_type=#{parentType}, parent_id=#{parentId}, image_type=#{imageType}, x=#{x}, y=#{y}, ref_type=#{refType}, ref_id=#{refId}, info=#{info}, width=#{width}, height=#{height} WHERE id=#{id}")
     int update(Marker marker);
 
     /**

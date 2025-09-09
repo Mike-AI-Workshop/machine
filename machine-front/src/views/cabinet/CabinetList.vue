@@ -144,13 +144,13 @@
           <el-input v-model="cabinetEditForm.columnNumber" placeholder="例如：1"/>
         </el-form-item>
         <el-form-item label="正面图片" v-if="authStore.isAdmin">
-          <el-upload action="/api/images" :show-file-list="false" :on-success="handleUploadFrontSuccess" :data="{ type: 'cabinet_front' }" :before-upload="beforeUpload">
+          <el-upload action="/api/images" :headers="uploadHeaders" :show-file-list="false" :on-success="handleUploadFrontSuccess" :data="{ type: 'cabinet_front' }" :before-upload="beforeUpload">
             <el-button>上传图片</el-button>
           </el-upload>
           <img v-if="cabinetEditForm.imageFrontUrl" :src="cabinetEditForm.imageFrontUrl" class="upload-preview" />
         </el-form-item>
         <el-form-item label="背面图片" v-if="authStore.isAdmin">
-          <el-upload action="/api/images" :show-file-list="false" :on-success="handleUploadBackSuccess" :data="{ type: 'cabinet_back' }" :before-upload="beforeUpload">
+          <el-upload action="/api/images" :headers="uploadHeaders" :show-file-list="false" :on-success="handleUploadBackSuccess" :data="{ type: 'cabinet_back' }" :before-upload="beforeUpload">
             <el-button>上传图片</el-button>
           </el-upload>
           <img v-if="cabinetEditForm.imageBackUrl" :src="cabinetEditForm.imageBackUrl" class="upload-preview" />
@@ -211,6 +211,12 @@ const cabinetEditForm = ref({
   imageBackUrl: '',
   description: ''
 })
+
+const uploadHeaders = computed(() => {
+  return {
+    Authorization: `Bearer ${authStore.token}`
+  }
+});
 
 /**
  * 计算属性：对机柜按列数排序

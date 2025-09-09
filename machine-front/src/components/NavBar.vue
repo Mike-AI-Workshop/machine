@@ -1,52 +1,61 @@
 <template>
-  <el-header class="main-header">
-    <div class="header-content">
-      <div class="logo-container">
-        <img src="/logo.png" alt="Logo" class="logo-img" />
-      </div>
-
-      <el-menu mode="horizontal" :ellipsis="false" router class="main-menu">
-        <el-menu-item index="/">首页</el-menu-item>
-        <el-menu-item index="/rooms">机房管理</el-menu-item>
-      </el-menu>
-
-      <div class="user-actions">
-        <div v-if="authStore.isAuthenticated">
-          <el-dropdown @command="handleCommand">
-            <span class="el-dropdown-link">
-              <el-avatar :icon="UserFilled" size="small" />
-              <span class="username">{{ authStore.user.username }}</span>
-              <el-icon class="el-icon--right"><arrow-down /></el-icon>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="profile">个人中心</el-dropdown-item>
-                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+  <div>
+    <el-header class="main-header">
+      <div class="header-content">
+        <div class="logo-container">
+          <img src="/logo.png" alt="Logo" class="logo-img" />
         </div>
-        <div v-else>
-          <el-button text @click="authStore.openLoginModal">登录</el-button>
+
+        <el-menu mode="horizontal" :ellipsis="false" router class="main-menu">
+          <el-menu-item index="/">首页</el-menu-item>
+          <el-menu-item index="/rooms">机房管理</el-menu-item>
+        </el-menu>
+
+        <div class="user-actions">
+          <div v-if="authStore.isAuthenticated">
+            <el-dropdown @command="handleCommand">
+              <span class="el-dropdown-link">
+                <el-avatar :icon="UserFilled" size="small" />
+                <span class="username">{{ authStore.user.username }}</span>
+                <el-icon class="el-icon--right"><arrow-down /></el-icon>
+              </span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="changePassword">修改密码</el-dropdown-item>
+                  <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+          <div v-else>
+            <el-button text @click="authStore.openLoginModal">登录</el-button>
+          </div>
         </div>
       </div>
-    </div>
-  </el-header>
+    </el-header>
+    <ChangePasswordModal 
+      :visible="changePasswordModalVisible"
+      @update:visible="changePasswordModalVisible = $event" 
+    />
+  </div>
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import { useAuthStore } from '../store/auth';
 import { useRouter } from 'vue-router';
 import { UserFilled, ArrowDown } from '@element-plus/icons-vue';
+import ChangePasswordModal from './ChangePasswordModal.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
+const changePasswordModalVisible = ref(false);
 
 const handleCommand = (command) => {
   if (command === 'logout') {
     authStore.logout();
-  } else if (command === 'profile') {
-    router.push('/profile');
+  } else if (command === 'changePassword') {
+    changePasswordModalVisible.value = true;
   }
 };
 </script>

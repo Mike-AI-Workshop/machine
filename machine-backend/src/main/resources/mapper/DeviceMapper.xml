@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.machinebackend.mapper.DeviceMapper">
+
+    <!-- 定义Device实体和数据库表字段的基础映射关系 -->
+    <resultMap id="BaseResultMap" type="com.example.machinebackend.entity.Device">
+        <id column="id" property="id" />
+        <result column="cabinet_id" property="cabinetId" />
+        <result column="name" property="name" />
+        <result column="number" property="number" />
+        <result column="image_front" property="imageFront" />
+        <result column="image_back" property="imageBack" />
+        <result column="description" property="description" />
+    </resultMap>
+
+    <!--
+      定义DeviceWithFullPathDTO的映射关系。
+      它继承自基础映射，并扩展了额外的路径字段。
+     -->
+    <resultMap id="DeviceWithFullPathResultMap" type="com.example.machinebackend.dto.DeviceWithFullPathDTO" extends="BaseResultMap">
+        <result property="cabinetName" column="cabinet_name"/>
+        <result property="rowName" column="row_name"/>
+        <result property="roomName" column="room_name"/>
+    </resultMap>
+
+    <!--
+      核心查询语句：根据机柜ID获取设备列表，并连接查询出完整的层级路径名称。
+      - 从 device (d) 表开始
+      - 左连接 cabinet (c) 表获取机柜名称
+      - 左连接 cabinet_row (cr) 表获取机柜排名称
+      - 左连接 room (r) 表获取机房名称
+     -->
+    <select id="selectDevicesWithFullPathByCabinetId" resultMap="DeviceWithFullPathResultMap">
+        SELECT
+            d.*,
+            c.name AS cabinet_name,
+            cr.name AS row_name,
+            r.name AS room_name
+        FROM
+            device d
+        LEFT JOIN cabinet c ON d.cabinet_id = c.id
+        LEFT JOIN cabinet_row cr ON c.row_id = cr.id
+        LEFT JOIN room r ON cr.room_id = r.id
+        WHERE
+            d.cabinet_id = #{cabinetId}
+    </select>
+
+    <!--
+      新增查询：根据单个设备ID获取设备信息，并连接查询出完整的层级路径名称。
+      - 与上面的查询逻辑基本一致，仅 WHERE 条件不同。
+     -->
+    <select id="selectDeviceWithFullPathById" resultMap="DeviceWithFullPathResultMap">
+        SELECT
+            d.*,
+            c.name AS cabinet_name,
+            cr.name AS row_name,
+            r.name AS room_name
+        FROM
+            device d
+        LEFT JOIN cabinet c ON d.cabinet_id = c.id
+        LEFT JOIN cabinet_row cr ON c.row_id = cr.id
+        LEFT JOIN room r ON cr.room_id = r.id
+        WHERE
+            d.id = #{id}
+    </select>
+
+</mapper> 

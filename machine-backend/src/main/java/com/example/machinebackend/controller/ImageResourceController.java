@@ -4,6 +4,7 @@ import com.example.machinebackend.entity.ImageResource;
 import com.example.machinebackend.service.ImageResourceService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.Date;
@@ -21,6 +22,9 @@ import java.util.stream.Collectors;
 public class ImageResourceController {
     /** ImageResourceService依赖，用于业务处理 */
     private final ImageResourceService imageResourceService;
+
+    @Value("${file.upload-dir}")
+    private String uploadDir;
 
     @Autowired
     public ImageResourceController(ImageResourceService imageResourceService) {
@@ -42,42 +46,38 @@ public class ImageResourceController {
                                            @RequestParam("type") String type,
                                            HttpServletRequest request) {
         Map<String, Object> result = new HashMap<>();
-        // 获取项目根目录的绝对路径
-        String projectDir = System.getProperty("user.dir");
-        String uploadDir = projectDir + File.separator + "upload";
-        File dir = new File(uploadDir);
-        if (!dir.exists()) {
-            boolean created = dir.mkdirs();
-            System.out.println("创建upload目录：" + created + "，路径：" + dir.getAbsolutePath());
-        } else {
-            System.out.println("upload目录已存在，路径：" + dir.getAbsolutePath());
-        }
-        // 保存文件到本地upload目录
-        String filename = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-        File dest = new File(dir, filename);
         try {
+            // 使用配置的路径创建目录
+            File dir = new File(uploadDir);
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+
+            // 保存文件到目标目录
+            String filename = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+            File dest = new File(dir.getAbsolutePath(), filename);
+
             file.transferTo(dest);
-            System.out.println("文件已保存到：" + dest.getAbsolutePath());
+
+            // 保存图片元数据到数据库
+            String relativeUrl = "/upload/" + filename;
+            ImageResource image = new ImageResource();
+            image.setUrl(relativeUrl);
+            image.setType(type);
+            image.setCreatedAt(new Date());
+            imageResourceService.addImageResource(image);
+
+            // 返回包含完整URL的image对象
+            String baseUrl = getBaseUrl(request);
+            image.setUrl(baseUrl + relativeUrl);
+
+            result.put("code", 0);
+            result.put("data", image);
         } catch (Exception e) {
             e.printStackTrace();
             result.put("code", 1);
             result.put("message", "文件保存失败: " + e.getMessage());
-            return result;
         }
-        // 保存图片元数据
-        String relativeUrl = "/upload/" + filename;
-        ImageResource image = new ImageResource();
-        image.setUrl(relativeUrl);
-        image.setType(type);
-        image.setCreatedAt(new Date());
-        imageResourceService.addImageResource(image);
-
-        // 返回包含完整URL的image对象
-        String baseUrl = getBaseUrl(request);
-        image.setUrl(baseUrl + relativeUrl);
-
-        result.put("code", 0);
-        result.put("data", image);
         return result;
     }
 
