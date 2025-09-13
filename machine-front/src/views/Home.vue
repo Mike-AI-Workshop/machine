@@ -200,12 +200,16 @@ function handleUploadSuccess(res, key) {
 </script>
 
 <style scoped>
+/* Core Typography - Following Modern Sans-Serif approach */
 .home-container {
+  font-family: 'Inter', 'Manrope', 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   width: 100%;
-  padding-bottom: 80px; /* 为固定页脚留出空间 */
+  color: #000000;
+  background-color: #ffffff;
+  padding-bottom: 80px;
 }
 
-/* Edit Mode Styles */
+/* Edit Mode Styles - Maintaining existing functionality */
 .edit-mode-toggle {
   position: fixed;
   bottom: 100px;
@@ -226,7 +230,7 @@ function handleUploadSuccess(res, key) {
   transition: background-color 0.3s;
 }
 
-.editable-text:hover .edit-icon, 
+.editable-text:hover .edit-icon,
 .editable-text:hover .edit-icon-inline,
 .editable-text:hover .edit-icon-fullscreen {
   opacity: 1;
@@ -238,14 +242,14 @@ function handleUploadSuccess(res, key) {
   right: -30px;
   transform: translateY(-50%);
   font-size: 1.5rem;
-  color: #409EFF;
+  color: #2563EB;
   opacity: 0;
   transition: opacity 0.3s;
 }
 
 .edit-icon-inline {
   margin-left: 8px;
-  color: #409EFF;
+  color: #2563EB;
   opacity: 0;
   transition: opacity 0.3s;
 }
@@ -255,10 +259,10 @@ function handleUploadSuccess(res, key) {
   top: 20px;
   right: 20px;
   font-size: 2rem;
-  color: #409EFF;
+  color: #2563EB;
   opacity: 0;
   transition: opacity 0.3s;
-  background: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.9);
   border-radius: 50%;
   padding: 5px;
 }
@@ -271,40 +275,44 @@ function handleUploadSuccess(res, key) {
 }
 
 .rich-text-editor {
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
-  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
   min-height: 200px;
+  line-height: 1.6;
 }
 
 .carousel-editor {
   display: flex;
   justify-content: space-around;
-  gap: 20px;
+  gap: 32px;
 }
+
 .carousel-item-editor {
   text-align: center;
 }
+
 .carousel-item-editor .el-image {
   width: 200px;
   height: 120px;
-  border: 1px solid #eee;
-  margin-bottom: 10px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 16px;
+  border-radius: 8px;
 }
 
-
-/* Visual Banner */
+/* Visual Banner - Dramatic Scaling & Focus */
 .visual-banner {
   position: relative;
   text-align: center;
   color: white;
+  margin-bottom: 120px;
 }
 
 .carousel-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: brightness(0.6);
+  filter: brightness(0.4);
 }
 
 .banner-content {
@@ -313,99 +321,133 @@ function handleUploadSuccess(res, key) {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 10;
-  width: 80%;
+  width: 90%;
+  max-width: 1200px;
 }
 
 .banner-content h1 {
-  font-size: 3.5rem;
-  font-weight: bold;
-  margin-bottom: 20px;
-  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+  font-size: clamp(3rem, 8vw, 5rem);
+  font-weight: 900;
+  margin-bottom: 32px;
+  text-shadow: 2px 2px 12px rgba(0, 0, 0, 0.9);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .banner-content p {
-  font-size: 1.5rem;
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
   max-width: 800px;
-  margin: 0 auto 30px;
-  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.8);
+  margin: 0 auto 40px;
+  text-shadow: 1px 1px 6px rgba(0, 0, 0, 0.8);
+  line-height: 1.5;
+  font-weight: 400;
 }
 
-/* Feature Cards */
+/* Feature Cards - Clarity & Space */
 .feature-cards {
-  padding: 60px 50px;
+  padding: 80px 120px;
   background-color: #f9fafb;
-  min-height: 400px; /* 增加最小高度以容纳详情视图 */
+  min-height: 500px;
+  margin-bottom: 80px;
 }
 
 .feature-card {
   text-align: center;
-  transition: all 0.3s ease;
-  border-radius: 8px;
-  border: 1px solid #e4e7ed;
-  cursor: pointer; /* 增加手型光标 */
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  background-color: #ffffff;
+  padding: 40px 32px;
+  height: 100%;
 }
 
 .feature-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+  border-color: #2563EB;
 }
 
 .card-header {
-  font-size: 1.5rem;
-  font-weight: 600;
-  padding: 10px 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  padding: 16px 0;
+  color: #000000;
+  line-height: 1.2;
 }
 
 .feature-card p {
-  color: #606266;
-  padding: 0 15px;
-  margin-bottom: 25px;
-  min-height: 45px;
+  color: #6b7280;
+  padding: 0 8px;
+  margin-bottom: 32px;
+  min-height: 60px;
   line-height: 1.6;
+  font-size: 1.125rem;
+  font-weight: 400;
 }
 
-/* 详情视图样式 */
+/* Detailed View - Professional & Clean */
 .detailed-view {
   position: relative;
-  padding: 20px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  padding: 60px 80px;
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e5e7eb;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
 .back-button {
   position: absolute;
-  top: 20px;
-  left: 20px;
+  top: 24px;
+  left: 24px;
   font-size: 1.2rem;
-  width: 40px;
-  height: 40px;
-  z-index: 10; /* 提升层级确保可点击 */
+  width: 48px;
+  height: 48px;
+  z-index: 10;
+  border: 1px solid #e5e7eb;
+  background-color: #ffffff;
+  color: #374151;
+  transition: all 0.2s ease;
+}
+
+.back-button:hover {
+  background-color: #f9fafb;
+  border-color: #2563EB;
+  color: #2563EB;
 }
 
 .detailed-view h2 {
   text-align: center;
-  margin-bottom: 30px;
-  font-size: 2rem;
+  margin-bottom: 40px;
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #000000;
+  line-height: 1.2;
 }
 
 .detailed-view p,
 .detailed-view ul {
-  font-size: 1.1rem;
+  font-size: 1.125rem;
   line-height: 1.8;
-  color: #606266;
+  color: #6b7280;
   max-width: 800px;
-  margin: 0 auto 20px;
+  margin: 0 auto 24px;
 }
 
 .detailed-view ul {
   padding-left: 40px;
 }
 
-/* 过渡动画 */
+.detailed-view li {
+  margin-bottom: 12px;
+}
+
+/* Transitions - Smooth & Professional */
 .fade-scale-enter-active,
 .fade-scale-leave-active {
-  transition: all 0.4s ease;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .fade-scale-enter-from,
@@ -415,21 +457,61 @@ function handleUploadSuccess(res, key) {
 }
 
 .el-button--text {
-    font-size: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
-/* Footer */
+/* Primary Action Color - Single Action Color Strategy */
+.el-button--primary {
+  background-color: #2563EB;
+  border-color: #2563EB;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.el-button--primary:hover {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.el-button--text {
+  color: #2563EB;
+}
+
+/* Footer - Minimal & Professional */
 .home-footer {
   text-align: center;
-  padding: 25px;
-  color: #909399;
+  padding: 32px;
+  color: #9ca3af;
   font-size: 14px;
   background-color: #ffffff;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid #f3f4f6;
   position: fixed;
   bottom: 0;
   left: 0;
   width: 100%;
   z-index: 100;
+  font-weight: 400;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .feature-cards {
+    padding: 40px 24px;
+  }
+
+  .detailed-view {
+    padding: 40px 24px;
+    margin: 0 16px;
+  }
+
+  .banner-content h1 {
+    font-size: 2.5rem;
+  }
+
+  .banner-content p {
+    font-size: 1.25rem;
+  }
 }
 </style> 
